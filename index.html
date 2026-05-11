@@ -9,16 +9,25 @@
     <!-- [핵심] 카카오톡 인앱 브라우저 외부로 빼내기 스크립트 -->
     <script>
         (function () {
-            var userAgent = navigator.userAgent.toLowerCase();
-            var targetUrl = location.href;
+            var ua = navigator.userAgent.toLowerCase();
+            var url = location.href;
 
-            if (userAgent.indexOf("kakaotalk") > -1) {
-                if (userAgent.indexOf("android") > -1) {
-                    // 안드로이드: 크롬 브라우저로 강제 이동
-                    location.href = 'intent://' + targetUrl.replace(/https?:\/\//i, '') + '#Intent;scheme=https;package=com.android.chrome;end';
-                } else if (userAgent.indexOf("iphone") > -1 || userAgent.indexOf("ipad") > -1) {
-                    // 아이폰(iOS): 강제 이동이 막혀 있어 안내창 띄우기
-                    alert("카카오톡 브라우저에서는 소리가 나지 않거나 오류가 날 수 있습니다.\n\n화면 우측 하단의 🧭(나침반) 아이콘을 눌러 Safari(사파리)에서 열어주세요!");
+            // 인앱 브라우저 감지: 카카오톡, 페이스북, 인스타그램
+            var isKakao     = ua.indexOf('kakaotalk') > -1;
+            var isFacebook  = ua.indexOf('fban') > -1 || ua.indexOf('fbav') > -1 || ua.indexOf('fb_iab') > -1;
+            var isInstagram = ua.indexOf('instagram') > -1;
+            var isInApp     = isKakao || isFacebook || isInstagram;
+
+            var isAndroid = ua.indexOf('android') > -1;
+            var isIOS     = ua.indexOf('iphone') > -1 || ua.indexOf('ipad') > -1;
+
+            if (isInApp) {
+                if (isAndroid) {
+                    // 안드로이드: 크롬으로 강제 이동
+                    location.href = 'intent://' + url.replace(/https?:\/\//i, '') + '#Intent;scheme=https;package=com.android.chrome;end';
+                } else if (isIOS) {
+                    // iOS: 강제 이동 불가 → 안내 팝업
+                    alert('이 앱 안에서는 소리가 나지 않거나 오류가 날 수 있습니다.\n\n화면 하단 더보기(⋯) 또는 공유 버튼을 눌러 Safari에서 열어주세요!');
                 }
             }
         })();
@@ -154,18 +163,25 @@
         // --- 화면 크기 자동 조절 ---
         function autoScaleApp() {
             const wrapper = document.getElementById('app-wrapper');
-            const targetWidth = 1100;
+            const targetWidth  = 1100;
             const targetHeight = 1000;
 
-            const currentWidth = window.innerWidth;
-            const currentHeight = window.innerHeight;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
 
-            const scaleW = currentWidth / targetWidth;
-            const scaleH = currentHeight / targetHeight;
+            const finalScale = Math.min(vw / targetWidth, vh / targetHeight) * 0.95;
 
-            const finalScale = Math.min(scaleW, scaleH) * 0.95;
+            // transform: scale()은 시각적 크기만 줄이고 레이아웃 공간은 그대로 유지됨.
+            // 모바일에서 1100px 너비가 flex 레이아웃을 벗어나 화면이 잘리는 문제를
+            // 음수 마진으로 보정하여 실제 차지하는 공간도 줄여줌.
+            const scaledWidth  = targetWidth  * finalScale;
+            const scaledHeight = targetHeight * finalScale;
 
-            wrapper.style.transform = `scale(${finalScale})`;
+            wrapper.style.transform    = `scale(${finalScale})`;
+            wrapper.style.marginLeft   = `-${(targetWidth  - scaledWidth)  / 2}px`;
+            wrapper.style.marginRight  = `-${(targetWidth  - scaledWidth)  / 2}px`;
+            wrapper.style.marginTop    = `-${(targetHeight - scaledHeight) / 2}px`;
+            wrapper.style.marginBottom = `-${(targetHeight - scaledHeight) / 2}px`;
         }
 
         window.addEventListener('resize', autoScaleApp);
