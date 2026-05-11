@@ -172,8 +172,10 @@
             const finalScale = Math.min(vw / targetWidth, vh / targetHeight) * 0.95;
 
             // position: absolute + translate(-50%, -50%) 방식으로 정중앙 배치.
-            // flex 레이아웃과 완전히 독립되어 음수 마진 없이도 모바일에서 정확하게 중앙 정렬됨.
+            // ★ 래퍼에 고정 높이를 지정해야 translate(-50%, -50%)가 항상 동일한 값을 유지함.
+            //    안내 문구가 1줄↔2줄 바뀌어도 래퍼 높이가 고정되어 룰렛 위치가 흔들리지 않음.
             wrapper.style.position  = 'absolute';
+            wrapper.style.height    = targetHeight + 'px'; // 고정 높이로 중앙 정렬 안정화
             wrapper.style.top       = '50%';
             wrapper.style.left      = '50%';
             wrapper.style.transform = `translate(-50%, -50%) scale(${finalScale})`;
