@@ -398,7 +398,8 @@
             lastPointerAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
             lastTickAngle = currentAngle;
 
-            instruction.innerHTML = "👀 한 칸씩 천천히 확인해 보세요!";
+            // 두 번째 줄을 투명하게 유지해 안내문 높이를 항상 동일하게 고정 → 결과 상자 위치 흔들림 방지
+            instruction.innerHTML = "👀 한 칸씩 천천히 확인해 보세요!<br><span class='text-2xl text-gray-500 font-medium' style='opacity:0'>(글자 입력칸을 터치하면 자판도 열려요)</span>";
             instruction.classList.remove('animate-bounce');
         });
 
