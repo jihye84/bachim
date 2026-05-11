@@ -143,13 +143,17 @@
         </p>
 
         <!-- 결과 글자 표시 영역 -->
-        <div class="mt-10 flex flex-col items-center">
-            <div id="result-box-container" onclick="speakResult()"
+        <div class="mt-10 relative w-[300px]">
+            <div id="result-box-container"
                 class="relative w-[300px] h-[300px] bg-white rounded-[3rem] shadow-xl flex items-center justify-center border-[10px] border-blue-400 text-gray-800 transition-all font-black cursor-pointer hover:bg-blue-50 active:scale-95">
                 <span id="result-box" class="text-[12rem] leading-none mb-4">?</span>
-                <span id="sound-hint"
-                    class="absolute bottom-4 right-5 text-4xl opacity-30 transition-opacity pointer-events-none">🔊</span>
             </div>
+            <!-- TTS 토글 버튼: 파란 상자 바깥 오른쪽 아래 -->
+            <button id="tts-toggle-btn"
+                class="absolute bottom-0 -right-16 w-14 h-14 bg-white rounded-full shadow-lg border-2 border-blue-300 flex items-center justify-center text-3xl hover:border-blue-500 hover:shadow-blue-200 active:scale-90 transition-all z-30"
+                onclick="toggleTtsMute()">
+                🔊
+            </button>
         </div>
     </div>
 
@@ -225,8 +229,9 @@
         const baseInputEl = document.getElementById('base-letter');
         const resultBox = document.getElementById('result-box');
         const resultBoxContainer = document.getElementById('result-box-container');
-        const soundHint = document.getElementById('sound-hint');
+        const ttsToggleBtn = document.getElementById('tts-toggle-btn'); // TTS 음소거 토글 버튼
         const instruction = document.getElementById('instruction');
+        let isTtsMuted = false; // true일 때 TTS만 차단, 룰렛 효과음은 유지
 
         // --- 토글 스위치 동작 함수 ---
         function toggleMode() {
@@ -371,9 +376,38 @@
 
         baseInputEl.addEventListener('input', (e) => {
             let val = e.target.value;
-            if (val.length > 1) e.target.value = val.charAt(val.length - 1);
+            if (val.length > 1) val = val.charAt(val.length - 1);
+
+            // 받침이 있는 글자를 입력하면 자동으로 받침 제거 후 안내 표시
+            const code = val.charCodeAt(0);
+            if (code >= 44032 && code <= 55203) {
+                const jongseong = (code - 44032) % 28;
+                if (jongseong !== 0) {
+                    const stripped = String.fromCharCode(code - jongseong);
+                    e.target.value = stripped;
+                    showInputNotice(stripped);
+                    calculateResult(true);
+                    return;
+                }
+            }
+
+            e.target.value = val;
             calculateResult(true);
         });
+
+        // --- 받침 자동 제거 안내 메시지 ---
+        let noticeTimeoutId = null;
+        function showInputNotice(char) {
+            if (noticeTimeoutId) clearTimeout(noticeTimeoutId);
+
+            instruction.innerHTML = `✏️ '${char}'로 입력합니다!<br><span class='text-2xl text-blue-400 font-medium'>(받침은 자동으로 제거됩니다)</span>`;
+            instruction.classList.remove('animate-bounce');
+
+            noticeTimeoutId = setTimeout(() => {
+                instruction.innerHTML = "👆 룰렛을 잡고 살살 돌려보세요!<br><span class='text-2xl text-gray-500 font-medium'>(글자 입력칸을 터치하면 자판도 열려요)</span>";
+                noticeTimeoutId = null;
+            }, 1500);
+        }
 
         baseInputEl.addEventListener('blur', (e) => {
             if (!e.target.value.trim()) {
@@ -470,54 +504,113 @@
                 resultBoxContainer.classList.add('animate-pop');
 
                 if (finalCharResult !== '?') {
-                    soundHint.classList.replace('opacity-30', 'opacity-100');
                     resultBoxContainer.classList.remove('pointer-events-none');
                 } else {
-                    soundHint.classList.replace('opacity-100', 'opacity-30');
                     resultBoxContainer.classList.add('pointer-events-none');
                 }
             } else {
-                soundHint.classList.replace('opacity-100', 'opacity-30');
                 resultBoxContainer.classList.add('pointer-events-none');
             }
         }
 
-        // --- 고품질 아나운서 톤 TTS 출력 함수 ---
-        function speakResult() {
-            if (!finalCharResult || finalCharResult === '?') return;
+        // --- 받침 제거 헬퍼: 한글 음절에서 종성(받침)을 제거한 글자 반환 ---
+        function stripJongseong(char) {
+            const code = char.charCodeAt(0);
+            if (code < 44032 || code > 55203) return char;
+            const jongseong = (code - 44032) % 28;
+            return jongseong === 0 ? char : String.fromCharCode(code - jongseong);
+        }
 
+        // --- TTS 공통 출력 함수 ---
+        function speakChar(char) {
+            if (isTtsMuted) return; // 음소거 모드: TTS만 차단, 룰렛 효과음은 계속 재생
             window.speechSynthesis.cancel();
+            if (availableVoices.length === 0) availableVoices = window.speechSynthesis.getVoices();
 
-            currentUtterance = new SpeechSynthesisUtterance(finalCharResult + ".");
-            currentUtterance.lang = 'ko-KR';
-            currentUtterance.rate = 0.85;
-            currentUtterance.pitch = 1.0;
-
-            if (availableVoices.length === 0) {
-                availableVoices = window.speechSynthesis.getVoices();
-            }
+            const utt = new SpeechSynthesisUtterance(char + ".");
+            utt.lang  = 'ko-KR';
+            utt.rate  = 0.85;
+            utt.pitch = 1.0;
 
             if (availableVoices.length > 0) {
-                let bestVoice = availableVoices.find(v => v.lang.includes('ko') && (v.name.includes('Google') || v.name.includes('Premium') || v.name.includes('Siri')));
-
-                if (!bestVoice) {
-                    bestVoice = availableVoices.find(v => v.lang.includes('ko'));
-                }
-
-                if (bestVoice) {
-                    currentUtterance.voice = bestVoice;
-                }
+                let best = availableVoices.find(v => v.lang.includes('ko') && (v.name.includes('Google') || v.name.includes('Premium') || v.name.includes('Siri')));
+                if (!best) best = availableVoices.find(v => v.lang.includes('ko'));
+                if (best) utt.voice = best;
             }
 
-            currentUtterance.onend = function () {
-                currentUtterance = null;
-            };
-            currentUtterance.onerror = function () {
-                currentUtterance = null;
-            };
-
-            window.speechSynthesis.speak(currentUtterance);
+            utt.onend  = () => { currentUtterance = null; };
+            utt.onerror = () => { currentUtterance = null; };
+            currentUtterance = utt;
+            window.speechSynthesis.speak(utt);
         }
+
+        // --- 탭 시 TTS ---
+        function speakResult() {
+            if (!finalCharResult || finalCharResult === '?') return;
+            speakChar(finalCharResult);
+        }
+
+        // --- TTS 음소거 토글 ---
+        function toggleTtsMute() {
+            isTtsMuted = !isTtsMuted;
+            ttsToggleBtn.textContent = isTtsMuted ? '🔇' : '🔊';
+            ttsToggleBtn.style.borderColor = isTtsMuted ? '#fca5a5' : ''; // 음소거 시 빨간 테두리
+            if (isTtsMuted) window.speechSynthesis.cancel(); // 더빙 중인 TTS도 즉시 중단
+        }
+
+        // --- 꿼욕 누르기: 받침 없는 글자 연습 모드 ---
+        let holdTimeoutId  = null; // 300ms 대기 후 홀드모드 진입
+        let holdIntervalId = null; // 1.5초마다 TTS 반복
+        let isHolding      = false;
+
+        function startHoldMode() {
+            if (!finalCharResult || finalCharResult === '?') return;
+            const simpleChar = stripJongseong(finalCharResult);
+
+            // 받침이 없는 글자면 일반 TTS만
+            if (simpleChar === finalCharResult) { speakResult(); return; }
+
+            isHolding = true;
+            resultBox.innerText = simpleChar;   // '상' → '사'
+            speakChar(simpleChar);              // 즉시 1회 읽기
+            holdIntervalId = setInterval(() => speakChar(simpleChar), 1500);
+        }
+
+        function endHoldMode() {
+            clearTimeout(holdTimeoutId);
+            holdTimeoutId = null;
+
+            if (holdIntervalId) {
+                clearInterval(holdIntervalId);
+                holdIntervalId = null;
+            }
+
+            if (isHolding) {
+                isHolding = false;
+                resultBox.innerText = finalCharResult; // '사' → '상' 복원
+                speakChar(finalCharResult);            // 전체 글자 읽기
+            } else {
+                speakResult(); // 빠른 탭: 일반 TTS
+            }
+        }
+
+        // 결과 상자 포인터 이벤트 등록
+        resultBoxContainer.addEventListener('pointerdown', (e) => {
+            if (!finalCharResult || finalCharResult === '?') return;
+            e.preventDefault(); // 모바일 더블탭 줌 방지
+            // setPointerCapture: 전자칠판·터치스크린에서 손가락/펜이 살짝 벗어나도
+            // 포인터를 이 요소에 고정 → 홀드 모드가 끊기지 않음
+            resultBoxContainer.setPointerCapture(e.pointerId);
+            holdTimeoutId = setTimeout(() => {
+                holdTimeoutId = null;
+                startHoldMode();
+            }, 300);
+        });
+
+        // pointerleave 제거: setPointerCapture가 있으면 요소 밖으로 나가도 이벤트 유지됨
+        ['pointerup', 'pointercancel'].forEach(evt =>
+            resultBoxContainer.addEventListener(evt, endHoldMode)
+        );
 
         // 실행 시 초기 세팅
         initWheel();
