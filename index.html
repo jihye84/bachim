@@ -171,17 +171,12 @@
 
             const finalScale = Math.min(vw / targetWidth, vh / targetHeight) * 0.95;
 
-            // transform: scale()은 시각적 크기만 줄이고 레이아웃 공간은 그대로 유지됨.
-            // 모바일에서 1100px 너비가 flex 레이아웃을 벗어나 화면이 잘리는 문제를
-            // 음수 마진으로 보정하여 실제 차지하는 공간도 줄여줌.
-            const scaledWidth  = targetWidth  * finalScale;
-            const scaledHeight = targetHeight * finalScale;
-
-            wrapper.style.transform    = `scale(${finalScale})`;
-            wrapper.style.marginLeft   = `-${(targetWidth  - scaledWidth)  / 2}px`;
-            wrapper.style.marginRight  = `-${(targetWidth  - scaledWidth)  / 2}px`;
-            wrapper.style.marginTop    = `-${(targetHeight - scaledHeight) / 2}px`;
-            wrapper.style.marginBottom = `-${(targetHeight - scaledHeight) / 2}px`;
+            // position: absolute + translate(-50%, -50%) 방식으로 정중앙 배치.
+            // flex 레이아웃과 완전히 독립되어 음수 마진 없이도 모바일에서 정확하게 중앙 정렬됨.
+            wrapper.style.position  = 'absolute';
+            wrapper.style.top       = '50%';
+            wrapper.style.left      = '50%';
+            wrapper.style.transform = `translate(-50%, -50%) scale(${finalScale})`;
         }
 
         window.addEventListener('resize', autoScaleApp);
