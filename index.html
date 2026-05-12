@@ -559,22 +559,23 @@
             if (isTtsMuted) window.speechSynthesis.cancel(); // 더빙 중인 TTS도 즉시 중단
         }
 
-        // --- 꿼욕 누르기: 받침 없는 글자 연습 모드 ---
-        let holdTimeoutId = null; // 300ms 대기 후 홀드모드 진입
-        let holdIntervalId = null; // 1.5초마다 TTS 반복
-        let isHolding = false;
+        // --- 꾹 누르기: 받침 없는 글자 연습 모드 ---
+        // 가볍게 탭 → 받침 있는 발음
+        // 꾹 누르기 (500ms 이상) → 받침 없는 발음을 1.2초마다 반복
+        let holdTimeoutId = null;   // 500ms 대기 후 홀드모드 진입
+        let holdIntervalId = null;  // 1.2초마다 TTS 반복
+        let isHolding = false;      // 홀드 모드 중 여부
+        let didHold = false;        // pointerup 시 탭인지 홀드인지 구분
 
         function startHoldMode() {
             if (!finalCharResult || finalCharResult === '?') return;
             const simpleChar = stripJongseong(finalCharResult);
 
-            // 받침이 없는 글자면 일반 TTS만
-            if (simpleChar === finalCharResult) { speakResult(); return; }
-
             isHolding = true;
-            resultBox.innerText = simpleChar;   // '상' → '사'
-            speakChar(simpleChar);              // 즉시 1회 읽기
-            holdIntervalId = setInterval(() => speakChar(simpleChar), 1500);
+            didHold = true;
+            resultBox.innerText = simpleChar;       // '상' → '사'
+            speakChar(simpleChar);                  // 즉시 1회 읽기
+            holdIntervalId = setInterval(() => speakChar(simpleChar), 1200);
         }
 
         function endHoldMode() {
@@ -587,12 +588,17 @@
             }
 
             if (isHolding) {
+                // 홀드 종료: 화면 복원 + 받침 있는 발음 재생
                 isHolding = false;
                 resultBox.innerText = finalCharResult; // '사' → '상' 복원
-                speakChar(finalCharResult);            // 전체 글자 읽기
-            } else {
-                speakResult(); // 빠른 탭: 일반 TTS
+                speakChar(finalCharResult);            // 받침 있는 발음 재생
             }
+
+            // didHold가 false이면 빠른 탭 → 받침 있는 발음
+            if (!didHold) {
+                speakResult();
+            }
+            didHold = false;
         }
 
         // 결과 상자 포인터 이벤트 등록
@@ -602,16 +608,20 @@
             // setPointerCapture: 전자칠판·터치스크린에서 손가락/펜이 살짝 벗어나도
             // 포인터를 이 요소에 고정 → 홀드 모드가 끊기지 않음
             resultBoxContainer.setPointerCapture(e.pointerId);
+            didHold = false;
             holdTimeoutId = setTimeout(() => {
                 holdTimeoutId = null;
                 startHoldMode();
-            }, 300);
+            }, 500); // 500ms 이상 누르면 홀드 모드
         });
 
         // pointerleave 제거: setPointerCapture가 있으면 요소 밖으로 나가도 이벤트 유지됨
         ['pointerup', 'pointercancel'].forEach(evt =>
             resultBoxContainer.addEventListener(evt, endHoldMode)
         );
+
+        // 전자칠판·터치스크린 오른쪽 클릭 메뉴(컨텍스트 메뉴) 차단
+        resultBoxContainer.addEventListener('contextmenu', (e) => e.preventDefault());
 
         // 실행 시 초기 세팅
         initWheel();
